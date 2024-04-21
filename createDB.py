@@ -39,6 +39,13 @@ def createMeetings():
             'description': 'Invitation only meeting for teachers.',
             'isPublic': 'False',
             'audience': b'p3200150@aueb.gr,p3200400@aueb.gr'
+        },
+        {
+            'meetingID': 3,
+            'title': 'Test Meeting',
+            'description': 'This is a test purpose meeting.',
+            'isPublic': 'True',
+            'audience':'all'
         }
     ]
 
@@ -84,6 +91,12 @@ def createMeetingInstances():
             'fromdatetime': '2024-04-20 15:00:00',
             'todatetime': '2024-05-13 13:00:00'
         },
+        {
+            'meetingID': 3,
+            'orderID': 1,
+            'fromdatetime': '2024-04-21 01:00:00',
+            'todatetime': '2024-04-21 04:37:00'
+        }
     ]
 
     for _instance in meeting_instances:

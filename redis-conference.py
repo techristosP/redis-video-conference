@@ -1,7 +1,7 @@
 import redis
 import time
 
-import createDB
+from createDB import createDB
 
 # Connect to Redis
 r = redis.Redis(host='localhost', port=6379, decode_responses=True)
@@ -55,14 +55,15 @@ def join_meeting(userID, meetingID):
         'event_type': event_type,
         'timestamp': time_joined
     }
-    r.hset(f"event_id:{event_id}:{userID}:{meetingID}:{event_type}", mapping=event)  
+    r.hset(f"event:{event_id}:{userID}:{meetingID}:{event_type}", mapping=event)  
     r.incr('event_id_counter')
 
     return f"[+] User '{user['name']}' joined meeting '{meeting['title']}' at {time_joined}."
 
 
-def leave_meeting(userID, meetingID):
-    time_left = time.strftime('%Y-%m-%d %H:%M:%S')
+def leave_meeting(userID, meetingID, time_left=None):
+    if time_left is None:
+        time_left = time.strftime('%Y-%m-%d %H:%M:%S')
 
     # Check if meeting exists
     meeting = r.hgetall(f"meeting:{meetingID}")
@@ -79,26 +80,22 @@ def leave_meeting(userID, meetingID):
     if not instance_keys:
         return "[!] Meeting instance does not exist."
     
-    # Keep the active meeting instance
-    t_instance = None
-    for _instance in instance_keys:
-        t_instance = r.hgetall(_instance)
-
-        if t_instance['fromdatetime'] < time_left and t_instance['todatetime'] > time_left:
-            break
-    
-    if t_instance is None:
-        return "[!] There is no active meeting instance."
+    # Check if meeting instance is active
+    instance_keys.sort(reverse=True)
+    t_instance = r.hgetall(instance_keys[0])
+    if t_instance['fromdatetime'] > time_left or t_instance['todatetime'] <= time_left:
+        return f"[!] There is no active instance of meeting '{meeting['title']}'."
 
     # Check if user has joined the meeting 
-    events_keys = r.keys(f"event_id:*:{userID}:{meetingID}:*")
+    events_keys = r.keys(f"event:*:{userID}:{meetingID}:*")
     if not events_keys:
-        return f"[!] User '{user['name']}' has not joined any meetings."
+        return f"[!] User '{user['name']}' has not joined meeting '{meeting['title']}'."
     
+    # Get the last event of the user for this meeting
     events_keys.sort(reverse=True)
     t_event = r.hgetall(events_keys[0])
     if t_event['event_type'] == '2' and t_event['timestamp'] <= time_left and t_event['timestamp'] >= t_instance['fromdatetime'] and t_event['timestamp'] <= t_instance['todatetime']:
-        return f"[!] User '{user['name']}' has already left the meeting."
+        return f"[!] User '{user['name']}' has already left meeting '{meeting['title']}'."
     if (t_event['event_type'] == '1' or t_event['type'] == '3') and t_instance['fromdatetime'] <= t_event['timestamp'] and t_instance['todatetime'] >= t_event['timestamp']:
         if time_left >= t_event['timestamp'] and time_left <= t_instance['todatetime']:
 
@@ -112,13 +109,13 @@ def leave_meeting(userID, meetingID):
                 'event_type': event_type,
                 'timestamp': time_left
             }
-            r.hset(f"event_id:{event_id}:{userID}:{meetingID}:{event_type}", mapping=event)
+            r.hset(f"event:{event_id}:{userID}:{meetingID}:{event_type}", mapping=event)
             r.incr('event_id_counter')
 
             return f"[+] User '{user['name']}' left meeting '{meeting['title']}' at {time_left}."
         
     
-    return f"[!] User '{user['name']}' has not joined the meeting yet."
+    return f"[!] User '{user['name']}' - ERROR while leaving the meeting."
      
 
 def meeting_participants(meetingID):
@@ -135,18 +132,14 @@ def meeting_participants(meetingID):
         return "[!] Meeting instance does not exist."
     
     # Check if meeting instance is active
-    t_instance = None
-    for _instance in instance_keys:
-        t_instance = r.hgetall(_instance)
-        if t_instance['fromdatetime'] <= current_time and t_instance['todatetime'] > current_time:
-            break
-
-    if t_instance is None:
-        return "[!] There is no active meeting instance."
+    instance_keys.sort(reverse=True)
+    t_instance = r.hgetall(instance_keys[0])
+    if t_instance['fromdatetime'] > current_time or t_instance['todatetime'] <= current_time:
+        return f"[!] There is no active instance of meeting '{meeting['title']}'."
 
     # Get all events of type 1(joined) that their timestamp is between the fromdatetime and todatetime of the meeting instance
     participants = {}
-    events_keys = r.keys(f"event_id:*:*:{meetingID}:*")
+    events_keys = r.keys(f"event:*:*:{meetingID}:*")
     for _event in events_keys:
         event = r.hgetall(_event)
         if event['event_type'] == '1' and event['timestamp'] >= t_instance['fromdatetime'] and event['timestamp'] <= t_instance['todatetime']:
@@ -186,28 +179,83 @@ def show_active_meetings():
 
     return res
 
+
+def end_meeting(meetingID):
+    current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Check if meeting exists
+    meeting = r.hgetall(f"meeting:{meetingID}")
+    if not r.exists(f"meeting:{meetingID}"):
+        return "[!] Meeting does not exist."
+    
+     #Check if meeting instances exists
+    instance_keys = r.keys(f"meeting_instance:{meetingID}:*")
+    if not instance_keys:
+        return "[!] Meeting instance does not exist."
+    
+    # Find ended meeting instances
+    ended_instances = []
+    for _instance in instance_keys:
+        t_instance = r.hgetall(_instance)
+        if t_instance['fromdatetime'] < current_time and t_instance['todatetime'] <= current_time:
+            ended_instances.append(t_instance)
+
+    if not ended_instances:
+        return "[!] There is no ended meeting instance."
+    
+    # Sort the ended instances by orderID, the first instance is the one that ended last
+    ended_instances.sort(key= lambda x: x['orderID'], reverse=True)
+    ended_instance = ended_instances[0]
+    
+    users_keys = r.keys(f"user:*")
+    if not users_keys:
+        return "[!] There are no users in the meeting."
+    
+    # Leave all users that have not left the meeting
+    for _user in users_keys:
+        userID = _user.split(':')[1]
+        print(leave_meeting(userID, meetingID, ended_instance['todatetime']))
+
+
    
 if __name__ == '__main__':
     r.flushdb()
-    createDB.createDB()
+    createDB()
 
     print(join_meeting(1, 1))
     time.sleep(1)
-    print(join_meeting(2, 1))
-    time.sleep(1)
-    print(join_meeting(1, 2))
-    time.sleep(1)
-    print(join_meeting(2, 2))
-    time.sleep(1)
-    print(leave_meeting(1, 1))
-    time.sleep(1)
-    print(leave_meeting(1, 1))
-    time.sleep(1)
-    print(meeting_participants(1))
-    time.sleep(1)
-    print(meeting_participants(2))
-    print(show_active_meetings())
+    # print(join_meeting(2, 1))
+    # time.sleep(1)
+    # print(join_meeting(1, 2))
+    # time.sleep(1)
+    # print(join_meeting(2, 2))
+    # time.sleep(1)
 
+    print(leave_meeting(1, 1))
+    time.sleep(1)
+    print(leave_meeting(1, 1))
+    time.sleep(1)
+    print(leave_meeting(1, 2))
+
+    # print(meeting_participants(1))
+    # print(meeting_participants(2))
+    # print(meeting_participants(3))
+
+    # print(show_active_meetings())
+
+    # print(join_meeting(1, 3))
+    # time.sleep(1)
+    # print(join_meeting(2, 3))
+    # time.sleep(31)
+
+    print(leave_meeting(1, 3))
+    # time.sleep(1)
+
+    # end_meeting(3)
+
+    # print(meeting_participants(1))
+    # print(meeting_participants(2))
+    # print(meeting_participants(3))
 
 
 
