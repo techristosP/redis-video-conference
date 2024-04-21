@@ -171,9 +171,9 @@ class ConferenceApp:
 
         meeting_info = [(self.db.get("meeting:"+_instance['meetingID']), _instance['fromdatetime'], _instance['todatetime']) for _instance in active_meeting_instances]
         res = f"[*] Active meetings are: \n"
-        res += ''.join([f"\t [id:{_meeting['meetingID']}] Meeting '{_meeting['title']}' from {_from} to {_to} \n" for _meeting, _from, _to in meeting_info])
+        res += ''.join([f"\t[id:{_meeting['meetingID']}] Meeting '{_meeting['title']}' from {_from} to {_to} \n" for _meeting, _from, _to in meeting_info])
 
-        return res
+        return res, active_meeting_instances
 
 
     def end_meeting(self, meetingID):
@@ -211,3 +211,11 @@ class ConferenceApp:
         for _user in users_keys:
             userID = _user.split(':')[1]
             print(self.leave_meeting(userID, meetingID, ended_instance['todatetime']))
+
+    def meeting_participants_join_time(self):
+
+        res, active_meetings_instances = self.show_active_meetings() 
+        print(res)
+        for _instance in active_meetings_instances:
+            meetingID = _instance['meetingID']
+            print('\t'+self.meeting_participants(meetingID))
