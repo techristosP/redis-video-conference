@@ -12,6 +12,8 @@ class ConferenceApp:
             self.db.createDB()
 
 
+    # Helper functions
+    # Check if meeting exists and return the meeting
     def __getMeeting(self, meetingID):
         meeting = self.db.get(f"meeting:{meetingID}")
         if not meeting:
@@ -19,6 +21,7 @@ class ConferenceApp:
 
         return meeting
     
+    # Check if user exists and return the user
     def __getUser(self, userID):
         user = self.db.get(f"user:{userID}")
         if not user:
@@ -26,6 +29,7 @@ class ConferenceApp:
         
         return user
     
+    # Check if meeting instance exists and return the instance keys
     def __getMeetingInstances(self, meetingID):
         instance_keys = self.db.getKeys(f"meeting_instance:{meetingID}:*")
         if not instance_keys:
@@ -175,7 +179,6 @@ class ConferenceApp:
 
         return res, active_meeting_instances
 
-
     def end_meeting(self, meetingID):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -219,7 +222,6 @@ class ConferenceApp:
             meetingID = _instance['meetingID']
             print('\t'+self.meeting_participants(meetingID))
 
-
     def post_message(self, userID, meetingID, text):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -229,7 +231,7 @@ class ConferenceApp:
             instance_keys = self.__getMeetingInstances(meetingID)            
        
             t_instance = self.__getActiveMeetingInstance(meeting, instance_keys, current_time)
-                
+
             # Log the message   
             message_key = f"message:{meetingID}:{t_instance['orderID']}"
             message = {
