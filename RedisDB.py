@@ -100,7 +100,7 @@ class RedisDB:
                 'meetingID': 3,
                 'orderID': 1,
                 'fromdatetime': '2024-04-21 01:00:00',
-                'todatetime': '2024-04-21 19:37:00'
+                'todatetime': '2024-04-23 04:54:00'
             }
         ]
 
@@ -123,7 +123,19 @@ class RedisDB:
     def exists(self, key):
         return self.__r.exists(key)
     
-    def set(self, key, value):
+    def push(self, key, value, left=True):
+        if left:
+            self.__r.lpush(key, value)
+        else:
+            self.__r.rpush(key, value)
+
+    def range(self, key, start, end):
+        return self.__r.lrange(key, start, end)
+    
+    def set(self, key, value, hah=True):
+        if not hash:
+            self.__r.set(key, value)
+
         self.__r.hset(key, mapping=value)
 
     def get(self, key, hash=True, all=True, field=None):
