@@ -106,32 +106,36 @@ def test_join_meeting():
     c.join_meeting(1, 1)  # User 1 joins Meeting 1
     c.join_meeting(2, 1)  # User 2 joins Meeting 1
 
-    # Test joining a user to a private meeting
+    # Test joining a user to a meeting that has already joined
     print('\nCase 2:\n')
+    c.join_meeting(1, 1)  # User 1 tries to join Meeting 1 again
+    
+    # Test joining a user to a private meeting
+    print('\nCase 3:\n')
     c.join_meeting(1, 2)  # User 1 joins Meeting 2 (private)
 
     # Test joining a user who is not invited to a private meeting
-    print('\nCase 3:\n')
+    print('\nCase 4:\n')
     c.join_meeting(2, 2)  # User 2 joins Meeting 2 (private)
 
     # Test joining a user to a non-existent meeting
-    print('\nCase 4:\n')
+    print('\nCase 5:\n')
     c.join_meeting(1, 5)  # User 1 tries to join Meeting 5 (non-existent)
 
     # Test joining a non-existent user to a meeting
-    print('\nCase 5:\n')
+    print('\nCase 6:\n')
     c.join_meeting(3, 1)  # User 4 tries to join Meeting 1 (non-existent user)
 
     # Test joining a non-existent user to a non-existent meeting
-    print('\nCase 6:\n')
+    print('\nCase 7:\n')
     c.join_meeting(3, 5)  # User 4 tries to join Meeting 5 (non-existent user and meeting)
 
     # Test joining a user to a meeting with no active instances
-    print('\nCase 7:\n')
+    print('\nCase 8:\n')
     c.join_meeting(1, 3)  # User 1 tries to join Meeting 3 (no active instances)
 
     # Test joining a user to a meeting with a future instance
-    print('\nCase 8:\n')
+    print('\nCase 9:\n')
     c.join_meeting(1, 4)  # User 1 tries to join Meeting 4 (future instance)
 
 def test_leave_meeting():
@@ -384,7 +388,7 @@ def test_show_meeting_user_messages():
 
 
 if __name__ == '__main__':
-    test_leave_meeting()
+    test_join_meeting()
     print("-----------------------------------------------------------------------------------")
     
     test_leave_meeting()
@@ -409,3 +413,4 @@ if __name__ == '__main__':
     print("-----------------------------------------------------------------------------------")
 
     test_show_meeting_user_messages()
+    print("-----------------------------------------------------------------------------------")

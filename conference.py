@@ -148,6 +148,15 @@ class ConferenceApp:
                     print(res)
                     return
                 
+            # Check if user has already joined the meeting
+            event_keys = self.db.getKeys(f"event:*:{userID}:{meetingID}:1")
+            event_keys.sort(reverse=True)
+            latest_event = self.db.get(event_keys[0]) if event_keys else None
+            if latest_event and t_instance['fromdatetime'] <= latest_event['timestamp'] and latest_event['timestamp'] < t_instance['todatetime']:
+                res = f"[!] User '{user['name']}' has already joined meeting '{meeting['title']}' at {latest_event['timestamp']}."
+                print(res)
+                return
+
             # Log the event
             event_id = self.db.get('event_id_counter', hash=False)
             event_type = 1
