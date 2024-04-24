@@ -199,7 +199,7 @@ def test_show_active_meetings():
         'fromdatetime': '2024-04-20 10:00:00',
         'todatetime': '2100-04-20 11:00:00'
     }
-    c.db.set(f"meeting_instance:{new_instance['meetingID']}:{new_instance['orderID']}", value=new_instance)
+    c.db0.set(f"meeting_instance:{new_instance['meetingID']}:{new_instance['orderID']}", value=new_instance)
 
     # Test showing active meetings with no active instances
     c.show_active_meetings()  # Show active meetings
@@ -259,7 +259,7 @@ def test_end_meeting():
         'fromdatetime': '2024-04-20 10:00:00',
         'todatetime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(new_time))
     }
-    c.db.set(f"meeting_instance:{new_instance['meetingID']}:{new_instance['orderID']}", value=new_instance)
+    c.db0.set(f"meeting_instance:{new_instance['meetingID']}:{new_instance['orderID']}", value=new_instance)
     c.join_meeting(1, 3) # User 1 joins Meeting 3
     time.sleep(1)
     c.join_meeting(2, 3) # User 2 joins Meeting 3
@@ -346,7 +346,7 @@ def test_meeting_messages():
     c.meeting_messages(2)  # Get messages of Meeting 2
 
     # Test getting messages of a non-existent meeting
-    print('\nCase :\n')
+    print('\nCase 3:\n')
     c.meeting_messages(5)  # Get messages of Meeting 5 (non-existent)
 
 def test_show_meeting_user_messages():
