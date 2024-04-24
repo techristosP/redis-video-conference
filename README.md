@@ -31,6 +31,12 @@ A database (db1) of:
 #### Assumptions
 - Only one instance of a meeting can be active at a time, the one with the highest orderID.
 
+### Data Structures
+The following data structures are used to store data in RedisDB:
+- **Hashes**: Used to store user, meeting, meeting instance, and events.
+- **Lists**: Used to store messages.
+- **String**: Used to store the event_id_counter.
+
 ### Prerequisites
 
 Before running the application, make sure you have the following installed:
