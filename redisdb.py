@@ -51,6 +51,13 @@ class RedisDB:
                 'description': 'This is a test purpose meeting.',
                 'isPublic': 'True',
                 'audience':'all'
+            },
+            {
+                'meetingID': 4,
+                'title': 'Future Meeting',
+                'description': 'This is a future meeting.',
+                'isPublic': 'True',
+                'audience':'all'
             }
         ]
 
@@ -100,6 +107,12 @@ class RedisDB:
                 'orderID': 1,
                 'fromdatetime': '2024-04-21 01:00:00',
                 'todatetime': '2024-04-24 17:20:00'
+            },
+            {
+                'meetingID': 4,
+                'orderID': 1,
+                'fromdatetime': '2026-04-25 10:00:00',
+                'todatetime': '2026-04-25 11:30:00'
             }
         ]
 

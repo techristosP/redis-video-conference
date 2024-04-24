@@ -3,7 +3,7 @@ import time
 import json
 
 class ConferenceApp:
-    
+
     def __init__(self, reset=True):
         # Connect to DB
         self.db = RedisDB()
@@ -495,4 +495,3 @@ class ConferenceApp:
             print(str(e))
             return
         
-
