@@ -32,6 +32,8 @@ def test_conference():
     # c.join_meeting(1, 3)
     # time.sleep(1)
     # c.join_meeting(2, 3)
+    # time.sleep(1)
+    # c.leave_meeting(2, 3)
     # time.sleep(31)
 
     # c.leave_meeting(1, 3)
@@ -39,9 +41,11 @@ def test_conference():
     # time.sleep(1)
 
     # End Meetings
-    # c.end_meeting(1)
-    c.end_meeting(2)
-    # c.end_meeting(3)
+    # stopMeeting=True stops the active meetinginstance
+    # stopMeeting=False terminates the ended meetinginstance properly
+    c.end_meeting(1, stopMeeting=True)
+    c.end_meeting(2, stopMeeting=False)
+    c.end_meeting(3)
 
     # c.meeting_participants(1)
     # c.meeting_participants(2)

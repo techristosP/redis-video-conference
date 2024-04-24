@@ -46,15 +46,18 @@ class ConferenceApp:
                     
         return t_instance
     
-    def __getInactiveMeetingInstance(self, meeting, instance_keys, time):
+    def __getLatestInactiveMeetingInstance(self, meeting, instance_keys, time):
         instance_keys.sort(reverse=True)
         t_instance = self.db.get(instance_keys[0])
         while t_instance['todatetime'] > time:
             instance_keys = instance_keys[1:]
-            t_instance = self.db.get(instance_keys[0])
+            if instance_keys != []:
+                t_instance = self.db.get(instance_keys[0])
+            else:
+                return None
 
-        # print(t_instance)
         return t_instance
+
 
     # Main functions
     def join_meeting(self, userID, meetingID):
@@ -108,7 +111,7 @@ class ConferenceApp:
             if not forceLeave:
                 t_instance = self.__getActiveMeetingInstance(meeting, instance_keys, time_left)
             else:
-                t_instance = self.__getInactiveMeetingInstance(meeting, instance_keys, time_left)
+                t_instance = self.__getLatestInactiveMeetingInstance(meeting, instance_keys, time_left)
 
             # Check if user has joined the meeting 
             events_keys = self.db.getKeys(f"event:*:{userID}:{meetingID}:*")
@@ -122,12 +125,12 @@ class ConferenceApp:
             # Get the last event of the user for this meeting
             events_keys.sort(reverse=True)
             t_event = self.db.get(events_keys[0])           
-            if t_event['event_type'] == '2' and t_event['timestamp'] <= time_left and t_event['timestamp'] >= t_instance['fromdatetime'] and t_event['timestamp'] <= t_instance['todatetime']:
+            if t_event['event_type'] == '2' and t_event['timestamp'] <= time_left and t_instance['fromdatetime'] <= t_event['timestamp'] and t_event['timestamp'] <= t_instance['todatetime']:
                 res = f"[!] User '{user['name']}' has already left meeting '{meeting['title']}'."
                 print(res)
                 return
             
-            if (t_event['event_type'] == '1' or t_event['event_type'] == '3') and t_instance['fromdatetime'] <= t_event['timestamp'] and t_instance['todatetime'] >= t_event['timestamp']:
+            if (t_event['event_type'] == '1' or t_event['event_type'] == '3') and t_instance['fromdatetime'] <= t_event['timestamp'] and t_event['timestamp'] <= t_instance['todatetime']:
                 if time_left >= t_event['timestamp'] and time_left <= t_instance['todatetime']:
 
                     #Log the event
@@ -218,41 +221,38 @@ class ConferenceApp:
         print(res)
         return active_meetings
 
-    def end_meeting(self, meetingID):
+    """ Assume that method is called when the meeting has ended, not to stop the meeting by default.
+    stopMeeting=True stops the active meeting instance
+    stopMeeting=False terminates the ended meeting instance properly for all users
+    """
+    def end_meeting(self, meetingID, stopMeeting=False):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         try:
             meeting = self.__getMeeting(meetingID)
             instance_keys = self.__getMeetingInstances(meetingID)  
 
-            # Find ended meeting instances
-            ended_instances = []
-            for _instance in instance_keys:
-                t_instance = self.db.get(_instance)
-                if t_instance['fromdatetime'] < current_time and t_instance['todatetime'] <= current_time:
-                    ended_instances.append(t_instance)
+            # Get the latest instance of the meeting that has ended
+            if not stopMeeting:
+                ended_instance = self.__getLatestInactiveMeetingInstance(meeting, instance_keys, current_time)
+            else:
+                ended_instance = self.__getActiveMeetingInstance(meeting, instance_keys, current_time)
 
-            if not ended_instances:
+            if not ended_instance:
                 res = f"[!] There is no ended instance for meeting '{meeting['title']}'."
                 print(res)
                 return
             
-            # Sort the ended instances by orderID, the first instance is the one that ended last
-            ended_instances.sort(key= lambda x: x['orderID'], reverse=True)
-            ended_instance = ended_instances[0]
-            
-            users_keys = self.db.getKeys(f"user:*")
-            if not users_keys:
-                res = "[!] There are no users in the meeting."
-                print(res)
-                return
-            
-            # Leave all users that have not left the meeting
-            for _user in users_keys:
-                userID = _user.split(':')[1]
-                self.leave_meeting(userID, meetingID, forceLeave=True, time_left=ended_instance['todatetime'])
+            print(f"[*] Ending latest instance of meeting {meeting['title']}...")
+            # Get all events of type 1(joined) that their timestamp is between the fromdatetime and todatetime of the ended instance
+            rel_events = self.db.getKeys(f"event:*:*:{meetingID}:*")
+            for _event in rel_events:
+                event = self.db.get(_event)
+                if ended_instance['fromdatetime'] <= event['timestamp'] and event['timestamp'] <= ended_instance['todatetime']:
+                    if event['event_type'] == '1':
+                        self.leave_meeting(event['userID'], meetingID, forceLeave=True, time_left=ended_instance['todatetime'])
 
-            res = f"[*] Meeting '{meeting['title']}' has ended."
+            res = f"\t> Latest instance of meeting '{meeting['title']}' has ended at: {ended_instance['todatetime']}."
             print(res)
             return
 
