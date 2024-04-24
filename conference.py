@@ -1,44 +1,90 @@
-from RedisDB import RedisDB
+from redisdb import RedisDB
 import time
 import json
 
 class ConferenceApp:
-    def __init__(self, init=True):
+    
+    def __init__(self, reset=True):
         # Connect to DB
         self.db = RedisDB()
 
-        if init:
-            self.db.clearDB()
-            self.db.createDB()
+        if reset:
+            self.db.resetDB()
 
 
     # Helper functions
-    # Check if meeting exists and return the meeting
     def __getMeeting(self, meetingID):
-        meeting = self.db.get(f"meeting:{meetingID}")
-        if not meeting:
-            raise Exception("[!] Meeting does not exist!")
+            """
+            Retrieve a meeting from the database.
 
-        return meeting
+            Args:
+                meetingID (str): The ID of the meeting to retrieve.
+
+            Returns:
+                dict: The meeting object.
+
+            Raises:
+                Exception: If the meeting does not exist in the database.
+            """
+            meeting = self.db.get(f"meeting:{meetingID}")
+            if not meeting:
+                raise Exception("[!] Meeting does not exist!")
+
+            return meeting
     
-    # Check if user exists and return the user
     def __getUser(self, userID):
-        user = self.db.get(f"user:{userID}")
-        if not user:
-            raise Exception("[!] User does not exist!")
-        
-        return user
+            """
+            Retrieve a user from the database based on their userID.
+
+            Args:
+                userID (str): The ID of the user to retrieve.
+
+            Returns:
+                dict: The user object.
+
+            Raises:
+                Exception: If the user does not exist in the database.
+            """
+            user = self.db.get(f"user:{userID}")
+            if not user:
+                raise Exception("[!] User does not exist!")
+            
+            return user
     
-    # Check if meeting instance exists and return the instance keys
     def __getMeetingInstances(self, meetingID):
-        instance_keys = self.db.getKeys(f"meeting_instance:{meetingID}:*")
-        if not instance_keys:
-            raise Exception("[!] Meeting instance does not exist!")
-        
-        return instance_keys
+            """
+            Retrieves the meeting instances associated with the given meeting ID.
+
+            Args:
+                meetingID (str): The ID of the meeting.
+
+            Returns:
+                list: A list of instance keys associated with the meeting ID.
+
+            Raises:
+                Exception: If no meeting instances exist for the given meeting ID.
+            """
+            instance_keys = self.db.getKeys(f"meeting_instance:{meetingID}:*")
+            if not instance_keys:
+                raise Exception("[!] Meeting instance does not exist!")
+            
+            return instance_keys
     
-    # Check if meeting instance is active and return the instance
     def __getActiveMeetingInstance(self, meeting, instance_keys, time):
+        """
+        Get the active instance of a meeting based on the given time.
+
+        Args:
+            meeting (dict): The meeting object.
+            instance_keys (list): A list of instance keys.
+            time (datetime): The current time.
+
+        Returns:
+            dict: The active instance of the meeting.
+
+        Raises:
+            Exception: If there is no active instance of the meeting.
+        """
         instance_keys.sort(reverse=True)
         t_instance = self.db.get(instance_keys[0])
         if t_instance['fromdatetime'] > time or t_instance['todatetime'] <= time:
@@ -47,6 +93,17 @@ class ConferenceApp:
         return t_instance
     
     def __getLatestInactiveMeetingInstance(self, meeting, instance_keys, time):
+        """
+        Get the latest inactive meeting instance before a given time.
+
+        Args:
+            meeting (str): The meeting identifier.
+            instance_keys (list): A list of instance keys.
+            time (datetime): The time to compare against.
+
+        Returns:
+            dict or None: The latest inactive meeting instance before the given time, or None if no such instance exists.
+        """
         instance_keys.sort(reverse=True)
         t_instance = self.db.get(instance_keys[0])
         while t_instance['todatetime'] > time:
@@ -61,6 +118,19 @@ class ConferenceApp:
 
     # Main functions
     def join_meeting(self, userID, meetingID):
+        """
+        Joins a user to a meeting.
+
+        Args:
+            userID (str): The ID of the user joining the meeting.
+            meetingID (str): The ID of the meeting to join.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If an error occurs while joining the meeting.
+        """
         time_joined = time.strftime('%Y-%m-%d %H:%M:%S')
         
         try:
@@ -100,6 +170,21 @@ class ConferenceApp:
             return
 
     def leave_meeting(self, userID, meetingID, forceLeave=False, time_left=None):
+        """
+        Leave a meeting.
+
+        Args:
+            userID (str): The ID of the user leaving the meeting.
+            meetingID (str): The ID of the meeting.
+            forceLeave (bool, optional): If True, force the user to leave the meeting even if they haven't joined. Defaults to False.
+            time_left (str, optional): The timestamp indicating the time the user is leaving the meeting. If not provided, the current time will be used. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If an error occurs while leaving the meeting.
+        """
         if time_left is None:
             time_left = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -160,6 +245,15 @@ class ConferenceApp:
             return
 
     def meeting_participants(self, meetingID):
+        """
+        Retrieves the participants of a meeting based on the meeting ID.
+
+        Args:
+            meetingID (str): The ID of the meeting.
+
+        Returns:
+            None
+        """
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         try:
@@ -194,6 +288,14 @@ class ConferenceApp:
             return
 
     def show_active_meetings(self):
+        """
+        Retrieves and displays information about active meetings.
+
+        Returns:
+            list: A list of tuples containing information about active meetings.
+                  Each tuple contains the meeting object and the active meeting instance.
+                  If there are no active meetings, it returns an empty list.
+        """
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         # Get all active meetings
@@ -210,7 +312,6 @@ class ConferenceApp:
             if t_active_instance:
                 active_meetings.append((t_meeting, t_active_instance))
 
-
         if not active_meetings:
             return "[!] There are no active meetings."
 
@@ -221,11 +322,17 @@ class ConferenceApp:
         print(res)
         return active_meetings
 
-    """ Assume that method is called when the meeting has ended, not to stop the meeting by default.
-    stopMeeting=True stops the active meeting instance
-    stopMeeting=False terminates the ended meeting instance properly for all users
-    """
     def end_meeting(self, meetingID, stopMeeting=False):
+        """
+        Ends the latest instance of a meeting.
+
+        Args:
+            meetingID (str): The ID of the meeting.
+            stopMeeting (bool, optional): If True, ends the active meeting instance. If False, ends the latest inactive meeting instance properly for all users. Defaults to False.
+        
+        Returns:
+            None
+        """
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         try:
@@ -261,7 +368,15 @@ class ConferenceApp:
             return
 
     def meeting_participants_join_time(self):
+        """
+        Retrieves the join time of participants for active meetings.
 
+        This method iterates over the active meetings and calls the `meeting_participants` method
+        to retrieve the join time of participants for each meeting.
+
+        Returns:
+            None
+        """
         active_meetings = self.show_active_meetings() 
         for _meeting in active_meetings:
             meetingID = _meeting[0]['meetingID']
@@ -270,6 +385,17 @@ class ConferenceApp:
         return
 
     def post_message(self, userID, meetingID, text):
+        """
+        Posts a message in a meeting.
+
+        Args:
+            userID (str): The ID of the user posting the message.
+            meetingID (str): The ID of the meeting where the message is being posted.
+            text (str): The content of the message.
+
+        Returns:
+            None
+        """
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         try:
@@ -298,7 +424,15 @@ class ConferenceApp:
             return
 
     def meeting_messages(self, meetingID):
+        """
+        Retrieve and print all messages of a given meeting.
 
+        Args:
+            meetingID (str): The ID of the meeting.
+
+        Returns:
+            None
+        """
         try:
             meeting = self.__getMeeting(meetingID)
             instance_keys = self.__getMeetingInstances(meetingID)
@@ -312,7 +446,7 @@ class ConferenceApp:
                 message_key = f"message:{meetingID}:{t_instance['orderID']}"
 
                 # Get all messages of the meeting instance's list
-                messages = [json.loads(_message) for _message in self.db.range(message_key, 0, -1)]
+                messages = [json.loads(_message) for _message in self.db.range(message_key)]
                 all_messages.extend(messages)
                 res += f"\tInstance {t_instance['orderID']} from {t_instance['fromdatetime']} to {t_instance['todatetime']}: \n"
                 res += ''.join(f"\t - {_message['text']} [by '{self.db.get('user:'+str(_message['userID']), all=False, field='name')}' at {_message['timestamp']}]\n" for _message in messages)
@@ -325,6 +459,16 @@ class ConferenceApp:
             return
             
     def show_meeting_user_messages(self, userID, meetingID):
+        """
+        Retrieves and displays all messages sent by a specific user in a given meeting.
+
+        Args:
+            userID (str): The ID of the user.
+            meetingID (str): The ID of the meeting.
+
+        Returns:
+            None
+        """
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
         try:
@@ -336,7 +480,7 @@ class ConferenceApp:
 
             # Get all messages of the meeting's active instance
             message_key = f"message:{meetingID}:{t_instance['orderID']}"
-            all_messages = [json.loads(_message) for _message in self.db.range(message_key, 0, -1)]    
+            all_messages = [json.loads(_message) for _message in self.db.range(message_key)]    
 
             # Get all messages of the user
             user_messages = [(_message['text'], _message['timestamp']) for _message in all_messages if _message['userID'] == userID]
