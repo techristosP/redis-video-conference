@@ -100,7 +100,7 @@ class RedisDB:
                 'meetingID': 3,
                 'orderID': 1,
                 'fromdatetime': '2024-04-21 01:00:00',
-                'todatetime': '2024-04-23 04:54:00'
+                'todatetime': '2024-04-24 04:49:00'
             }
         ]
 
@@ -132,7 +132,7 @@ class RedisDB:
     def range(self, key, start, end):
         return self.__r.lrange(key, start, end)
     
-    def set(self, key, value, hah=True):
+    def set(self, key, value, hash=True):
         if not hash:
             self.__r.set(key, value)
 

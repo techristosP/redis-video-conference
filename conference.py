@@ -45,8 +45,18 @@ class ConferenceApp:
             raise Exception(f"[!] There is no active instance of meeting '{meeting['title']}'.")
                     
         return t_instance
+    
+    def __getInactiveMeetingInstance(self, meeting, instance_keys, time):
+        instance_keys.sort(reverse=True)
+        t_instance = self.db.get(instance_keys[0])
+        while t_instance['todatetime'] > time:
+            instance_keys = instance_keys[1:]
+            t_instance = self.db.get(instance_keys[0])
 
+        # print(t_instance)
+        return t_instance
 
+    # Main functions
     def join_meeting(self, userID, meetingID):
         time_joined = time.strftime('%Y-%m-%d %H:%M:%S')
         
@@ -61,7 +71,9 @@ class ConferenceApp:
             if meeting['isPublic'] == 'False':
                 audience = meeting['audience'].split(',')
                 if user['email'] not in audience:
-                    return f"[!] User '{user['name']}' is not invited to the meeting '{meeting['title']}'."
+                    res = f"[!] User '{user['name']}' is not invited to the meeting '{meeting['title']}'."
+                    print(res)
+                    return
                 
             # Log the event
             event_id = self.db.get('event_id_counter', hash=False)
@@ -76,12 +88,15 @@ class ConferenceApp:
             self.db.set(f"event:{event_id}:{userID}:{meetingID}:{event_type}", value=event)  
             self.db.increase('event_id_counter')
 
-            return f"[+] User '{user['name']}' joined meeting '{meeting['title']}' at {time_joined}."
+            res =  f"[+] User '{user['name']}' joined meeting '{meeting['title']}' at {time_joined}."
+            print(res)
+            return
 
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
 
-    def leave_meeting(self, userID, meetingID, time_left=None):
+    def leave_meeting(self, userID, meetingID, forceLeave=False, time_left=None):
         if time_left is None:
             time_left = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -90,19 +105,29 @@ class ConferenceApp:
             user = self.__getUser(userID)
             instance_keys = self.__getMeetingInstances(meetingID)
         
-            t_instance = self.__getActiveMeetingInstance(meeting, instance_keys, time_left)
+            if not forceLeave:
+                t_instance = self.__getActiveMeetingInstance(meeting, instance_keys, time_left)
+            else:
+                t_instance = self.__getInactiveMeetingInstance(meeting, instance_keys, time_left)
 
             # Check if user has joined the meeting 
             events_keys = self.db.getKeys(f"event:*:{userID}:{meetingID}:*")
             if not events_keys:
-                return f"[!] User '{user['name']}' has not joined meeting '{meeting['title']}'."
+                if not forceLeave:
+                    res = f"[!] User '{user['name']}' has not joined meeting '{meeting['title']}'."
+                    print(res)
+
+                return
             
             # Get the last event of the user for this meeting
             events_keys.sort(reverse=True)
-            t_event = self.db.get(events_keys[0])
+            t_event = self.db.get(events_keys[0])           
             if t_event['event_type'] == '2' and t_event['timestamp'] <= time_left and t_event['timestamp'] >= t_instance['fromdatetime'] and t_event['timestamp'] <= t_instance['todatetime']:
-                return f"[!] User '{user['name']}' has already left meeting '{meeting['title']}'."
-            if (t_event['event_type'] == '1' or t_event['type'] == '3') and t_instance['fromdatetime'] <= t_event['timestamp'] and t_instance['todatetime'] >= t_event['timestamp']:
+                res = f"[!] User '{user['name']}' has already left meeting '{meeting['title']}'."
+                print(res)
+                return
+            
+            if (t_event['event_type'] == '1' or t_event['event_type'] == '3') and t_instance['fromdatetime'] <= t_event['timestamp'] and t_instance['todatetime'] >= t_event['timestamp']:
                 if time_left >= t_event['timestamp'] and time_left <= t_instance['todatetime']:
 
                     #Log the event
@@ -118,13 +143,18 @@ class ConferenceApp:
                     self.db.set(f"event:{event_id}:{userID}:{meetingID}:{event_type}", value=event)
                     self.db.increase('event_id_counter')
 
-                    return f"[+] User '{user['name']}' left meeting '{meeting['title']}' at {time_left}."
+                    res = f"[+] User '{user['name']}' left meeting '{meeting['title']}' at {time_left}."
+                    print(res)
+                    return 
                 
             
-            return f"[!] User '{user['name']}' - ERROR while leaving the meeting."
+            res = f"[!] User '{user['name']}' - ERROR while leaving the meeting."
+            print(res)
+            return
         
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
 
     def meeting_participants(self, meetingID):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -152,32 +182,41 @@ class ConferenceApp:
                         del participants[event['userID']]
 
             current_participants = [(self.db.get('user:'+k, field='name', all=False), 'joined: '+v) for k, v in participants.items()]
-            return f"[*] Participants of meeting '{meeting['title']}' are: {current_participants}"
+            res = f"[*] Participants of meeting '{meeting['title']}' are: {current_participants}"
+            print(res)
+            return
 
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
 
     def show_active_meetings(self):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Get all active meeting instances
-        instance_keys = self.db.getKeys(f"meeting_instance:*")
-        active_meeting_instances = []
-        for _key in instance_keys:
-            t_instance = self.db.get(_key)
-            time_started = t_instance['fromdatetime']
-            time_ended = t_instance['todatetime']
-            if time_started <= current_time and current_time < time_ended:
-                active_meeting_instances.append(t_instance)
+        # Get all active meetings
+        meeting_keys = self.db.getKeys(f"meeting:*")    # Get all meeting keys
+        active_meetings = []
+        for _key in meeting_keys:
+            t_meeting = self.db.get(_key)
+            try:
+                t_instance_keys = self.__getMeetingInstances(t_meeting['meetingID'])
+                t_active_instance = self.__getActiveMeetingInstance(t_meeting, t_instance_keys, current_time)
+            except Exception as e:
+                t_active_instance = None
 
-        if not active_meeting_instances:
+            if t_active_instance:
+                active_meetings.append((t_meeting, t_active_instance))
+
+
+        if not active_meetings:
             return "[!] There are no active meetings."
 
-        meeting_info = [(self.db.get("meeting:"+_instance['meetingID']), _instance['fromdatetime'], _instance['todatetime']) for _instance in active_meeting_instances]
+        meeting_info = [(_meeting[0], _meeting[1]['fromdatetime'], _meeting[1]['todatetime']) for _meeting in active_meetings]
         res = f"[*] Active meetings are: \n"
         res += ''.join([f"\t[id:{_meeting['meetingID']}] Meeting '{_meeting['title']}' from {_from} to {_to} \n" for _meeting, _from, _to in meeting_info])
 
-        return res, active_meeting_instances
+        print(res)
+        return active_meetings
 
     def end_meeting(self, meetingID):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -194,7 +233,9 @@ class ConferenceApp:
                     ended_instances.append(t_instance)
 
             if not ended_instances:
-                return "[!] There is no ended meeting instance."
+                res = f"[!] There is no ended instance for meeting '{meeting['title']}'."
+                print(res)
+                return
             
             # Sort the ended instances by orderID, the first instance is the one that ended last
             ended_instances.sort(key= lambda x: x['orderID'], reverse=True)
@@ -202,25 +243,31 @@ class ConferenceApp:
             
             users_keys = self.db.getKeys(f"user:*")
             if not users_keys:
-                return "[!] There are no users in the meeting."
+                res = "[!] There are no users in the meeting."
+                print(res)
+                return
             
             # Leave all users that have not left the meeting
             for _user in users_keys:
                 userID = _user.split(':')[1]
-                print(self.leave_meeting(userID, meetingID, ended_instance['todatetime']))
+                self.leave_meeting(userID, meetingID, forceLeave=True, time_left=ended_instance['todatetime'])
 
-            print(f"[*] Meeting '{meeting['title']}' has ended.")
+            res = f"[*] Meeting '{meeting['title']}' has ended."
+            print(res)
+            return
 
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
 
     def meeting_participants_join_time(self):
 
-        res, active_meetings_instances = self.show_active_meetings() 
-        print(res)
-        for _instance in active_meetings_instances:
-            meetingID = _instance['meetingID']
-            print('\t'+self.meeting_participants(meetingID))
+        active_meetings = self.show_active_meetings() 
+        for _meeting in active_meetings:
+            meetingID = _meeting[0]['meetingID']
+            self.meeting_participants(meetingID)
+
+        return
 
     def post_message(self, userID, meetingID, text):
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -242,10 +289,13 @@ class ConferenceApp:
             message_json = json.dumps(message)
             self.db.push(message_key, message_json, left=False)
 
-            return f"[+] User '{user['name']}' posted at '{current_time}': {text}."
+            res = f"[+] POST: - {text} [by '{user['name']}' at {current_time}]"
+            print(res)
+            return
 
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
 
     def meeting_messages(self, meetingID):
 
@@ -267,9 +317,38 @@ class ConferenceApp:
                 res += f"\tInstance {t_instance['orderID']} from {t_instance['fromdatetime']} to {t_instance['todatetime']}: \n"
                 res += ''.join(f"\t - {_message['text']} [by '{self.db.get('user:'+str(_message['userID']), all=False, field='name')}' at {_message['timestamp']}]\n" for _message in messages)
 
-
-            return res
+            print(res)
+            return
         
         except Exception as e:
-            return str(e)
+            print(str(e))
+            return
             
+    def show_meeting_user_messages(self, userID, meetingID):
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+
+        try:
+            meeting = self.__getMeeting(meetingID)
+            user = self.__getUser(userID)
+            instance_keys = self.__getMeetingInstances(meetingID)
+
+            t_instance = self.__getActiveMeetingInstance(meeting, instance_keys, current_time)
+
+            # Get all messages of the meeting's active instance
+            message_key = f"message:{meetingID}:{t_instance['orderID']}"
+            all_messages = [json.loads(_message) for _message in self.db.range(message_key, 0, -1)]    
+
+            # Get all messages of the user
+            user_messages = [(_message['text'], _message['timestamp']) for _message in all_messages if _message['userID'] == userID]
+
+            res = f"[*] Messages of '{user['name']}' in meeting '{meeting['title']}': \n"
+            res += ''.join(f"\t - {_message[0]} [at {_message[1]}]\n" for _message in user_messages)
+
+            print(res)
+            return
+        
+        except Exception as e:
+            print(str(e))
+            return
+        
+
